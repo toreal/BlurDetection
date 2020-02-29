@@ -11,6 +11,7 @@ import numpy
 # Custom modules
 import scripts
 import FocusMask
+from PIL import Image
 
 logger = logging.getLogger('main')
 
@@ -23,9 +24,25 @@ def evaluate(img_col, args):
     img_gry = cv2.cvtColor(img_col, cv2.COLOR_RGB2GRAY)
     rows, cols = img_gry.shape
     crow, ccol = rows/2, cols/2
-    f = numpy.fft.fft2(img_gry)
+    cv2.imwrite("test.png",img_gry)
+    data = Image.open("test.png")    
+    remmax = lambda x: x/x.max()
+    remmin = lambda x: x - numpy.amin(x, axis=(0,1), keepdims=True)
+    touint8 = lambda x: (remmax(remmin(x))*(256-1e-4)).astype(int)
+
+    channels = data.split()
+    result_array = numpy.zeros_like(data)
+    f = numpy.fft.fft2(channels[0])
     fshift = numpy.fft.fftshift(f)
-    fshift[crow-75:crow+75, ccol-75:ccol+75] = 0
+    
+    fshift[int(crow-1):int(crow+1), int(ccol-1):int(ccol+1)] = 0
+    result_array[...]=touint8(fshift)
+    result_image = Image.fromarray(result_array)
+    result_image.save('out.png')
+    print(numpy.count_nonzero(result_array > 128 ))
+
+    fshift[int(crow-75):int(crow+75), int(ccol-75):int(ccol+75)] = 0
+
     f_ishift = numpy.fft.ifftshift(fshift)
     img_fft = numpy.fft.ifft2(f_ishift)
     img_fft = 20*numpy.log(numpy.abs(img_fft))
@@ -35,6 +52,7 @@ def evaluate(img_col, args):
         scripts.display('img_col', img_col)
         cv2.waitKey(0)
     result = numpy.mean(img_fft)
+    print (result)
     return img_fft, result, result < args.thresh
 
 
